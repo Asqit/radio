@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 from urllib.parse import urlparse
-import http.client
+from typing import Optional
 import subprocess
+import argparse
+import socket
+import time
 import sys
 
 
@@ -9,15 +12,42 @@ def err_print(msg: str, *args, **kwargs) -> None:
     print(msg, *args, file=sys.stderr, **kwargs)
 
 
-def has_internet():
-    conn = http.client.HTTPSConnection("8.8.8.8", timeout=5)  # Google's DNS
+def play_stream(url: str, timeout: Optional[int] = None) -> None:
     try:
-        conn.request("HEAD", "/")
+        proc = subprocess.Popen(
+            ["mplayer", url],
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+
+        try:
+            ret = proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            raise Exception("mplayer timed out")
+
+        if ret == 0:
+            raise Exception("mplayer exited cleanly (stream ended unexpectedly)")
+        else:
+            raise Exception(f"mplayer exited with code {ret}")
+
+    except FileNotFoundError:
+        raise Exception("mplayer not found")
+    except Exception as e:
+        raise Exception(f"Stream playback failed: {e}")
+
+
+def has_connection(hostname: Optional[str]) -> bool:
+    try:
+        if hostname is None:
+            hostname = "1.1.1.1"
+
+        host = socket.gethostbyname(hostname)
+        s = socket.create_connection((host, 80), 2)
+        s.close()
         return True
     except Exception:
         return False
-    finally:
-        conn.close()
 
 
 def read_url() -> str:
@@ -40,24 +70,7 @@ def read_url() -> str:
         sys.exit(1)
 
 
-def play_stream(url: str) -> None:
-    try:
-        subprocess.run(
-            ["mplayer", url],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except subprocess.CalledProcessError as e:
-        raise Exception("Stream playback failed")
-    except FileNotFoundError:
-        raise Exception("mplayer not found")
-
-
-def main() -> None:
-    stream_url = read_url()
-    tries = 0
-    MAX_TRIES = 10
+def print_head(url: str, max_tries: int, hostname: str) -> None:
     print(
         """
 ============================
@@ -65,37 +78,52 @@ def main() -> None:
 ░█░█░▄▄▄░█▀▄░█▀█░█░█░░█░░█░█
 ░▀░▀░░░░░▀░▀░▀░▀░▀▀░░▀▀▀░▀▀▀
 ============================
-By Asqit (https://github.com/Asqit)\n\n
+By Asqit (https://github.com/Asqit)\n
 """
     )
-    print("Starting stream daemon...")
-    print(f"Streaming from: {stream_url}")
-    print(f"{MAX_TRIES} tries max if no internet connection.")
+    print("using:")
+    print(f"- stream: {url}")
+    print(f"- max-tries: {max_tries}")
+    print(f"- hostname: {hostname or '1.1.1.1'}\n\n")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--max-tries", help="number of tries before exit", type=int)
+    parser.add_argument("--hostname", help="hostname for internet checking", type=str)
+    parser.add_argument("--stream-url", help="internet stream", type=str)
+    args = parser.parse_args()
+
+    max_tries: int = args.max_tries or 10
+    stream_url: str = args.stream_url or read_url()
+    hostname: str | None = args.hostname
+    tries: int = 0
+
+    print_head(stream_url, max_tries, hostname)
 
     while True:
-        if tries >= MAX_TRIES:
-            err_print("Max tries reached. Exiting.")
+        if tries >= max_tries:
+            err_print("maximum number of tries has been reached!")
             sys.exit(1)
 
-        if has_internet():
+        if has_connection(hostname):
             try:
+                tries = 0
                 play_stream(stream_url)
             except Exception as e:
-                err_print(f"Error: {e}. Retrying in 5 seconds...")
-                subprocess.run(["sleep", "5"])
                 tries += 1
+                err_print(
+                    f"exception has occurred during streaming: {e}\n\nRetrying in 5 seconds. "
+                )
+                time.sleep(5)
         else:
             tries += 1
             err_print("No internet connection. Retrying in 10 seconds...")
-            subprocess.run(["sleep", "10"])
+            time.sleep(10)
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nExiting...")
         sys.exit(0)
-else:
-    err_print("This file is not meant to be imported.")
-    sys.exit(1)

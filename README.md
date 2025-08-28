@@ -11,14 +11,16 @@ Continuous internet radio streaming daemon for Raspberry Pi.
 
 ## Setup
 
-1. Add your stream URL to `url.txt`
+1. Add your stream URL to url.txt:
+
    ```bash
-   echo "https://your-radio-stream-url" > url.txt
+   $ echo "https://your-radio-stream-url" > url.txt
    ```
+
 2. Make installer executable and run:
    ```bash
-   chmod +x install.sh
-   ./install.sh
+   $ chmod +x install.sh
+   $ ./install.sh
    ```
 
 ## What it does
@@ -33,30 +35,30 @@ Continuous internet radio streaming daemon for Raspberry Pi.
 
 - Auto-recovery from network interrupts
 - Starts on boot via systemd
-- ~20MB RAM usage
-- Silent operation (no console output)
+- \~20-30MB RAM usage
+- Logs sent to systemd journal (journalctl -u radio)
 - Validates stream URLs
-- Max 10 retry attempts on network failure
+- Max 10 retry attempts on network failure before exiting (systemd restarts automatically)
 
 ## Control
 
 ```bash
-sudo systemctl status radio   # Check status
-sudo systemctl stop radio     # Stop
-sudo systemctl start radio    # Start
-sudo systemctl restart radio  # Restart
-sudo systemctl disable radio  # Disable auto-start
+$ sudo systemctl status radio   # Check status
+$ sudo systemctl stop radio     # Stop
+$ sudo systemctl start radio    # Start
+$ sudo systemctl restart radio  # Restart
+$ sudo systemctl disable radio  # Disable auto-start
 ```
 
 ## Logs
 
 ```bash
-sudo journalctl -u radio -f   # Follow logs
-sudo journalctl -u radio      # View all logs
+$ sudo journalctl -u radio -f   # Follow logs
+$ sudo journalctl -u radio      # View all logs
 ```
 
 ## Troubleshooting
 
-- **No audio**: Check `alsamixer` or audio output settings
-- **Stream fails**: Verify URL in `url.txt` is valid
-- **Service won't start**: Check logs with `journalctl -u radio`
+- No audio: Check alsamixer or audio output settings
+- Stream fails: Verify URL in url.txt is valid
+- Service won't start: Check logs with journalctl -u radio
